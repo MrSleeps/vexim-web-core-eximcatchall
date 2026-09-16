@@ -11,11 +11,36 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Schema;
 use VEximweb\Core\Data\Models\Domain;
 use VEximweb\Core\Data\Models\EximUser;
-use Illuminate\Support\Facades\Log;
 use VEximweb\Core\Data\Models\Setting;
 
 class EximCatchallForm
 {
+    public static function forwardingDestinationOptions(): array
+    {
+        $user = auth()->user();
+
+        if (!$user || (!$user->isSystemAdmin() && !$user->isDomainAdmin())) {
+            return [];
+        }
+
+        $query = EximUser::query()
+            ->whereIn('type', ['alias', 'local']);
+
+        if (!$user->isSystemAdmin()) {
+            $domainIds = $user->domains()->pluck('domains.domain_id');
+            $query->whereIn('users.domain_id', $domainIds);
+        }
+
+        $options = $query
+            ->orderBy('username')
+            ->pluck('username', 'username')
+            ->toArray();
+
+        $options['other'] = 'Other (enter external email)';
+
+        return $options;
+    }
+
     public static function configure(Schema $schema): Schema
     {
         $record = $schema->getRecord();
@@ -77,40 +102,21 @@ class EximCatchallForm
                     
                 Section::make('Forwarding Destination')
                     ->schema([
-                        Select::make('smtp')
+                        Select::make('smtp_selection')
                             ->label('Forward To')
                             ->searchable()
                             ->preload()
                             ->live()
-                            ->options(function () use ($record) {
-                                // Get existing alias and local users
-                                $options = EximUser::where('type', 'alias')
-                                    ->orWhere('type', 'local')
-                                    ->orderBy('username')
-                                    ->pluck('username', 'username')
-                                    ->toArray();
-                                
-                                $options['other'] = 'Other (enter external email)';
-                                return $options;
-                            })
-                            ->afterStateUpdated(function ($state, callable $set) {
-                                if ($state === 'other') {
-                                    $set('smtp', null);
-                                }
-                            }),
+                            ->required()
+                            ->options(fn (): array => static::forwardingDestinationOptions()),
 
                         TextInput::make('custom_smtp')
                             ->label('External Email Address')
                             ->email()
                             ->live()
-                            ->visible(fn (callable $get) => $get('smtp') === 'other')
+                            ->visible(fn (callable $get) => $get('smtp_selection') === 'other')
                             ->helperText('Enter the external email address where catchall emails should be forwarded')
-                            ->afterStateUpdated(function ($state, callable $set) {
-                                if ($state) {
-                                    $set('smtp', $state);
-                                }
-                            })
-                            ->required(fn (callable $get) => $get('smtp') === 'other'),
+                            ->required(fn (callable $get) => $get('smtp_selection') === 'other'),
 
                         Hidden::make('pop')->default(':fail:'),
                     ]),

@@ -170,31 +170,47 @@ class EximCatchAllResource extends Resource
     }
 
     /**
-     * Process forwarding destination before saving
+     * Convert the form-only forwarding fields to the persisted Exim fields.
      */
-    private static function processForwardingDestination(array $data): array
+    public static function processForwardingDestination(array $data): array
     {
-        if ($data['smtp_selection'] === 'other') {
-            $data['smtp'] = $data['custom_smtp'];
-            $data['pop'] = $data['custom_smtp'];
-        } else {
-            $data['smtp'] = $data['smtp_selection'];
-            $data['pop'] = $data['smtp_selection'];
-        }
+        $selection = $data['smtp_selection'] ?? null;
+        $destination = $selection === 'other'
+            ? ($data['custom_smtp'] ?? null)
+            : $selection;
+
+        $data['smtp'] = $destination;
+        $data['pop'] = $destination;
 
         unset($data['smtp_selection'], $data['custom_smtp']);
         
         return $data;
     }
 
-    public static function mutateFormDataBeforeCreate(array $data): array
+    /**
+     * Populate the form-only forwarding fields when editing a catchall.
+     */
+    public static function prepareForwardingDestinationForForm(array $data): array
     {
-        return static::processForwardingDestination($data);
-    }
+        $destination = $data['smtp'] ?? null;
 
-    public static function mutateFormDataBeforeSave(array $data): array
-    {
-        return static::processForwardingDestination($data);
+        if (!$destination) {
+            $data['smtp_selection'] = null;
+            $data['custom_smtp'] = null;
+            return $data;
+        }
+
+        $options = EximCatchallForm::forwardingDestinationOptions();
+
+        if (array_key_exists($destination, $options) && $destination !== 'other') {
+            $data['smtp_selection'] = $destination;
+            $data['custom_smtp'] = null;
+        } else {
+            $data['smtp_selection'] = 'other';
+            $data['custom_smtp'] = $destination;
+        }
+
+        return $data;
     }
 
     /**

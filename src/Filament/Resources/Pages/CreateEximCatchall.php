@@ -8,4 +8,9 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateEximCatchall extends CreateRecord
 {
     protected static string $resource = EximCatchallResource::class;
+
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        return EximCatchallResource::processForwardingDestination($data);
+    }
 }
