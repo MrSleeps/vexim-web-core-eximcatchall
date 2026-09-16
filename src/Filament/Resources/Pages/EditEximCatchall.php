@@ -10,6 +10,16 @@ class EditEximCatchall extends EditRecord
 {
     protected static string $resource = EximCatchallResource::class;
 
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        return EximCatchallResource::prepareForwardingDestinationForForm($data);
+    }
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        return EximCatchallResource::processForwardingDestination($data);
+    }
+
     protected function getHeaderActions(): array
     {
         return [
